@@ -15,6 +15,11 @@
     -- % before and after string searches for number of characters before and after, ie. "contains"
 -- IN statement can be used in conjunction with WHERE to filter for multiple identifiers, works like "is one of"
 -- NOT statement is great in conjunction with LIKE and IN to find all registrations not fitting criteria, works like "is not"
+-- AND and BETWEEN  operators are good for intervals and stacking filters
+-- OR is great for finding differences in the data, can be used with all other operators using parentheses to stack filters
+-- JOIN is used with ON to pull data from multiple tables, ON is used to determine what columnn is used to JOIN the tables
+-- Aliases can be used to not have to type out long table names, can be done with the AS statement or with just a space after the name and then the alias
+-- It is important to name columns, otherwise they might fuse together when joining
 
 -- CODING Examples --
 -- SQL Basics
@@ -127,3 +132,83 @@ SELECT *
 SELECT *
 	FROM accounts
     WHERE name NOT LIKE '%s';
+
+-- all orders where standard_qty is over thousand and poster_qty and gloss_qty is 0
+SELECT *
+	FROM orders
+    WHERE standard_qty >1000 
+        AND poster_qty = 0 
+        AND gloss_qty = 0;
+
+-- all companies whose name does not start with c and ends with s  
+SELECT *
+	FROM accounts
+WHERE name NOT LIKE 'C%' AND name LIKE '%s';
+
+-- order date and gloss_qty for all gloss_qty between 24 and 29 in descending order to see if values at endpoint are included    
+SELECT occurred_at, gloss_qty
+	FROM orders
+    WHERE gloss_qty BETWEEN 24 AND 29
+ORDER BY gloss_qty DESC;
+    -- answer is that yes it includes values at endpoint
+
+-- all information on  individuals who where contacted through organic or adwords channel and started their account sometime in 2016 sorted newest to oldest    
+SELECT *
+	FROM web_events
+    WHERE channel IN ('organic', 'adwords') 
+    AND occurred_at BETWEEN '2016-01-01' AND '2017-01-01'
+ORDER BY occurred_at DESC;
+
+-- List of orders where standard_qty is zero and either gloss_qty or poster_qty is greater than 1000
+SELECT *
+	FROM orders
+    WHERE standard_qty = 0 AND (gloss_qty > 1000 OR poster_qty > 1000);
+    
+-- all company names that start with C or W and the primary contact contains ana or Ana, but does not contain eana
+SELECT name
+	FROM accounts
+    WHERE (name LIKE 'C%' OR name LIKE 'W%') 
+        AND ((primary_poc LIKE '%ana%' OR primary_poc LIKE '%Ana%') 
+        AND primary_poc NOT LIKE '%eana%');
+
+
+-- JOIN SQL
+
+-- Pulling all data from accounts and joining orders by account id
+SELECT accounts.*, orders.*
+	FROM accounts
+    JOIN orders 
+        ON accounts.id = orders.account_id;
+    
+-- Pulling all qty from orders and joining the website and primary_poc from accounts
+SELECT orders.standard_qty, orders.gloss_qty, orders.poster_qty, accounts.website, accounts.primary_poc
+	FROM orders
+    JOIN accounts
+        ON orders.account_id = accounts.id;
+
+-- Webevents with time, channel, poc and name for walmart
+SELECT we.occurred_at, we.channel, a.primary_poc, a.name
+    FROM web_events we
+    JOIN accounts a
+        ON we.account_id = a.id
+    WHERE a.name = 'Walmart';
+
+-- Sales reps and their region and account sorted A-Z
+SELECT r.name region, s.name rep, a.name account
+    FROM sales_reps s
+    JOIN region r
+        ON s.region_id = r.id
+    JOIN accounts a
+        ON a.sales_rep_id = s.id
+ORDER BY a.name;
+
+-- Region for every order, unit price and account name
+SELECT r.name region, a.name account, 
+           o.total_amt_usd/(o.total + 0.01) unit_price
+    FROM region r
+    JOIN sales_reps s
+        ON s.region_id = r.id
+    JOIN accounts a
+        ON a.sales_rep_id = s.id
+    JOIN orders o
+        ON o.account_id = a.id;
