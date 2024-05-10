@@ -20,6 +20,9 @@
 -- JOIN is used with ON to pull data from multiple tables, ON is used to determine what columnn is used to JOIN the tables
 -- Aliases can be used to not have to type out long table names, can be done with the AS statement or with just a space after the name and then the alias
 -- It is important to name columns, otherwise they might fuse together when joining
+-- LEFT and RIGHT JOIN are effectively interchangable. If the right table contains extra rows, the query can be switched around so the right table is now the left table
+-- Filtering using an AND clause when also using LEFT JOIN instead of the WHERE joins all rows but only populates the field of the AND clause when the filter is met
+-- NULL occurs most often when data is missing or after a LEFT JOIN, where some rows don't fit the criteria and are therefore not populated
 
 -- CODING Examples --
 -- SQL Basics
@@ -212,3 +215,90 @@ SELECT r.name region, a.name account,
         ON a.sales_rep_id = s.id
     JOIN orders o
         ON o.account_id = a.id;
+
+-- Table with midwest region, rep name and account sorted A-Z
+SELECT r.name Region, s.name Rep, a.name Account
+	FROM sales_reps s
+	JOIN region r
+		ON r.id = s.region_id
+	JOIN accounts a
+		ON s.id = a.sales_rep_id
+	WHERE r.name = 'Midwest'
+ORDER BY a.name;
+
+-- Table with midwest region, rep first names starting with S and account sorted A-Z
+SELECT r.name Region, s.name Rep, a.name Account
+	FROM sales_reps s
+	JOIN region r
+		ON r.id = s.region_id
+	JOIN accounts a
+		ON s.id = a.sales_rep_id
+	WHERE r.name = 'Midwest'
+		AND s.name LIKE 'S%'
+ORDER BY a.name;
+
+-- Table with midwest region, rep last names starting with K and account sorted A-Z
+SELECT r.name Region, s.name Rep, a.name Account
+	FROM sales_reps s
+	JOIN region r
+		ON r.id = s.region_id
+	JOIN accounts a
+		ON s.id = a.sales_rep_id
+	WHERE r.name = 'Midwest'
+		AND s.name LIKE '%K%'
+		AND s.name NOT LIKE 'K%'
+ORDER BY a.name;
+
+-- Region for every order, unit price and account name for standard_qty over 100
+SELECT r.name region, a.name account, 
+           o.total_amt_usd/(o.total + 0.01) unit_price
+    FROM region r
+    JOIN sales_reps s
+        ON s.region_id = r.id
+    JOIN accounts a
+        ON a.sales_rep_id = s.id
+    JOIN orders o
+        ON o.account_id = a.id
+    WHERE o.standard_qty > 100;
+    
+-- Region for every order, unit price and account name for standard_qty over 100 and poster_qty over 50 sorted ascending by unit price
+SELECT r.name region, a.name account, 
+           o.total_amt_usd/(o.total + 0.01) unit_price
+    FROM region r
+    JOIN sales_reps s
+        ON s.region_id = r.id
+    JOIN accounts a
+        ON a.sales_rep_id = s.id
+    JOIN orders o
+        ON o.account_id = a.id
+    WHERE o.standard_qty > 100
+    	AND o.poster_qty > 50
+ORDER BY unit_price;
+        
+-- Region for every order, unit price and account name for standard_qty over 100 and poster_qty over 50, sorted descendingly
+SELECT r.name region, a.name account, 
+           o.total_amt_usd/(o.total + 0.01) unit_price
+    FROM region r
+    JOIN sales_reps s
+        ON s.region_id = r.id
+    JOIN accounts a
+        ON a.sales_rep_id = s.id
+    JOIN orders o
+        ON o.account_id = a.id
+    WHERE o.standard_qty > 100
+    	AND o.poster_qty > 50
+ORDER BY unit_price DESC;
+
+-- Unique channels used by account id 1001
+SELECT DISTINCT a.name Account, w.channel Channel
+	FROM accounts a
+    JOIN web_events w
+    	ON a.id = w.account_id
+    AND a.id = 1001;
+    
+-- All orders from 2015
+SELECT o.occurred_at, o.total, o.total_amt_usd Amount, a.name Account
+	FROM orders o
+    JOIN accounts a
+    	ON a.id = o.account_id
+    WHERE o.occurred_at BETWEEN '2015-01-01' AND '2016-01-01';
