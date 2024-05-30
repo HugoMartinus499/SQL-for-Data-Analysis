@@ -36,7 +36,17 @@
 -- DISTINCT can be used instead of COUNT and the GROUP BY clause. It works like Number of Unique. NOTE: it can slow down the query significantly when using aggregation
 -- HAVING is used as an alternative to the WHERE clause, when filtering on a part of the query that has been created using an aggregate
 -- HAVING goes between the GROUP BY and ORDER BY clauses
-
+-- DATE_TRUNC allows you to truncate your date to a particular part of your date-time column. Common trunctions are day, month, and year. 
+-- DATE_PART can be useful for pulling a specific portion of a date, but notice pulling month or day of the week (dow) means that you are no longer keeping the years in order. Rather you are grouping for certain components regardless of which year they belonged in.
+-- GROUP BY and ORDER BY clauses can reference the columns in the SELECT statement with numbers that follow the order they appear in, in the SELECT statement
+-- CASE statements work as ifelse, they follow the syntax: CASE WHEN {event} THEN {outcome} ELSE {different outcome} and must end with END
+-- The ELSE statement is optional and when not used, returns NULL
+-- CASE statements can be stacked, so as many as you would liked can be used in conjunction before ending with END
+-- CASE statements can be used with conditional operators like WHERE, AND and OR
+-- Subquerys are tools for performing operations in multiple steps
+-- Subquerys need to have aliases, which are added after the parenthesis
+-- Use identation to make the querys easier to read, especially as they get progressively more complex
+-- Subquerys can be used anywhere a table name might be used
 
 -- CODING Examples --
 -- SQL Basics
@@ -601,3 +611,162 @@ SELECT a.name, w.channel, COUNT(*) num_contacts
     GROUP BY a.name, w.channel
     ORDER BY num_contacts DESC
 LIMIT 10;
+
+-- Total sales per year
+SELECT DATE_PART('year', occurred_at) ord_year,  SUM(total_amt_usd) total_spent
+	FROM orders
+	GROUP BY 1
+	ORDER BY 2 DESC;
+-- The sales increase every year, except for 2017, Which might be due to the year not being finished in the dataset. 2013 and 2017 have less months available, only month 12 for 2013 and month 1 for 2017.
+
+-- Total sales per month
+SELECT DATE_PART('month', occurred_at) ord_month,  SUM(total_amt_usd) total_spent
+	FROM orders
+	WHERE occurred_at BETWEEN '2014-01-01' AND '2017-01-01'
+	GROUP BY 1
+	ORDER BY 2 DESC;
+-- Removed 2013 and 2017 as they each add one extra entry on either side of the scale. Month twelve has the highest revenue.
+
+-- Total number of orders per year
+SELECT DATE_PART('year', occurred_at) ord_year, COUNT(*) num_orders
+	FROM orders	
+    GROUP BY 1
+    ORDER BY 2 DESC;
+-- 2013 and 2017 ave only one month each, so they should be out
+
+-- Total number of order per year excl. 2013 and 2017
+SELECT DATE_PART('year', occurred_at) ord_year, COUNT(*) num_orders
+	FROM orders	
+    WHERE occurred_at BETWEEN '2014-01-01' AND '2017-01-01'
+    GROUP BY 1
+    ORDER BY 2 DESC;
+-- 2016 has the most orders
+
+-- Total order per month excl 2013 and 2017
+SELECT DATE_PART('month', occurred_at) ord_month, COUNT(*) num_orders
+	FROM orders	
+    WHERE occurred_at BETWEEN '2014-01-01' AND '2017-01-01'
+    GROUP BY 1
+    ORDER BY 2 DESC;
+-- Excluding 2013 and 2017, month 12 has the most orders
+
+-- Month and year that Walmart spend most on gloss paper
+SELECT DATE_TRUNC('month', o.occurred_at) ord_date, SUM(o.gloss_amt_usd) tot_spent
+	FROM orders o 
+	JOIN accounts a
+		ON a.id = o.account_id
+	WHERE a.name = 'Walmart'
+	GROUP BY 1
+	ORDER BY 2 DESC
+LIMIT 1;
+-- May 2016
+
+-- Unit price for each account, fix with CASE (earlier assignment)
+SELECT account_id, 
+	CASE WHEN standard_qty = 0 OR standard_qty IS NULL 
+    	THEN 0
+		ELSE standard_amt_usd/standard_qty 
+    END AS unit_price
+	FROM orders;
+
+-- Orders with account, level and amount
+SELECT account_id, total_amt_usd, 
+		CASE 
+   			WHEN total_amt_usd > 3000 THEN 'Large'
+   			ELSE 'Small' 
+            END AS order_level
+   	FROM orders;
+   
+-- Number of orders in 3 categories
+SELECT CASE 
+		WHEN total >= 2000 THEN 'At Least 2000'
+		WHEN total >= 1000 AND total < 2000 THEN 'Between 1000 and 2000'
+    	ELSE 'Less than 1000' 
+        END AS order_category,
+	COUNT(*) AS order_count
+	FROM orders
+	GROUP BY 1;
+
+-- Ranking customers based on spend
+SELECT a.name, SUM(total_amt_usd) total_spent, 
+        CASE 
+        	WHEN SUM(total_amt_usd) > 200000 THEN 'top'
+        	WHEN  SUM(total_amt_usd) > 100000 THEN 'middle'
+        	ELSE 'low' 
+            END AS customer_level
+	FROM orders o
+	JOIN accounts a
+		ON o.account_id = a.id 
+	GROUP BY a.name
+	ORDER BY 2 DESC;
+    
+-- Ranking customers in 2016 and 2017
+SELECT a.name, SUM(total_amt_usd) total_spent, 
+        CASE 
+        	WHEN SUM(total_amt_usd) > 200000 THEN 'top'
+        	WHEN  SUM(total_amt_usd) > 100000 THEN 'middle'
+        	ELSE 'low' 
+            END AS customer_level
+	FROM orders o
+	JOIN accounts a
+		ON o.account_id = a.id 
+    WHERE occurred_at > '2015-12-31'
+	GROUP BY a.name
+	ORDER BY 2 DESC;
+    
+-- Top performing sales reps based on orders
+SELECT s.name, COUNT(*) num_ords,
+		CASE 
+    		WHEN COUNT(*) > 200 THEN 'top'
+        	ELSE 'not' 
+        	END AS sales_rep_level
+	FROM orders o
+	JOIN accounts a
+		ON o.account_id = a.id 
+	JOIN sales_reps s
+		ON s.id = a.sales_rep_id
+	GROUP BY s.name
+	ORDER BY 2 DESC;
+    
+-- Top performing sales reps based on amount or orders
+SELECT s.name, COUNT(*) num_ords, SUM(o.total_amt_usd) total,
+		CASE 
+    		WHEN COUNT(*) > 200 OR SUM(o.total_amt_usd) > 750000 THEN 'top'
+            WHEN COUNT(*) > 150 OR SUM(o.total_amt_usd) > 500000 THEN 'middle'
+        	ELSE 'not' 
+        	END AS sales_rep_level
+	FROM orders o
+	JOIN accounts a
+		ON o.account_id = a.id 
+	JOIN sales_reps s
+		ON s.id = a.sales_rep_id
+	GROUP BY s.name
+	ORDER BY 3 DESC;
+
+-- Subquerys and temporary tables
+
+-- Number of events for each day for each channel. 
+SELECT DATE_TRUNC('day', occurred_at) AS day, 
+    channel, 
+    COUNT(*) AS event_count
+        FROM web_events
+        GROUP BY 1,2
+        ORDER BY event_count DESC;
+
+-- subquery returning output of first query
+SELECT *
+    FROM 
+    (SELECT DATE_TRUNC('day', occurred_at) AS day, channel, COUNT(*) AS event_count
+        FROM web_events
+        GROUP BY 1,2
+        ORDER BY event_count DESC) sub;
+
+-- Average number of events for each day for each channel
+SELECT channel, AVG(event_count) AS avg_event_count
+    FROM 
+    (SELECT DATE_TRUNC('day', occurred_at) AS day, channel, COUNT(*) AS event_count
+        FROM web_events
+        GROUP BY 1,2) sub
+        GROUP BY 1
+    ORDER BY 2 DESC;
+-- Breaking out by day in the first query makes the subquery give average for each day
