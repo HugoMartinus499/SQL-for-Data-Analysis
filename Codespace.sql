@@ -51,6 +51,14 @@
 -- WITH should be defined in the beginning before the outer query
 -- When creating multiples tables with WITH, you add a comma after every new table, except for the last one leading into the main query
 -- new tables are aliased using "table_name AS" and then the query between parentheses
+-- Data cleaning is useful to structure messy data
+-- LEFT pulls a specified number of characters for each row in a specified column starting at the beginning (or from the left). As you saw here, you can pull the first three digits of a phone number using LEFT(phone_number, 3).
+-- RIGHT pulls a specified number of characters for each row in a specified column starting at the end (or from the right). As you saw here, you can pull the last eight digits of a phone number using RIGHT(phone_number, 8).
+-- LENGTH provides the number of characters for each row of a specified column. Here, you saw that we could use this to get the length of each phone number as LENGTH(phone_number).
+-- POSITION takes a character and a column, and provides the index where that character is for each row. The index of the first position is 1 in SQL. 
+-- If you come from another programming language, many begin indexing at 0. Here, you saw that you can pull the index of a comma as POSITION(',' IN city_state).
+-- STRPOS provides the same result as POSITION, but the syntax for achieving those results is a bit different as shown here: STRPOS(city_state, ',').
+-- Note, both POSITION and STRPOS are case sensitive, so looking for A is different than looking for a.
 
 -- CODING Examples --
 -- SQL Basics
@@ -1141,3 +1149,57 @@ t2 AS (
     HAVING AVG(o.total_amt_usd) > (SELECT * FROM t1)) 
     SELECT AVG(avg_amt) 
     FROM t2;
+
+-- Data cleaning
+
+-- Number of companies with each domain
+SELECT RIGHT(website, 3) AS domain, COUNT(*) num_companies
+FROM accounts
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Number of companies that start with each letter
+SELECT LEFT(UPPER(name), 1) AS first_letter, COUNT(*) num_companies
+FROM accounts
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Companies that start with letters and numbers
+SELECT SUM(num) nums, SUM(letter) letters
+FROM (SELECT name, CASE WHEN LEFT(UPPER(name), 1) IN ('0','1','2','3','4','5','6','7','8','9') 
+                          THEN 1 ELSE 0 END AS num, 
+            CASE WHEN LEFT(UPPER(name), 1) IN ('0','1','2','3','4','5','6','7','8','9') 
+                          THEN 0 ELSE 1 END AS letter
+         FROM accounts) t1;
+
+-- Companies that start with vowels vs other charcters
+SELECT SUM(vowels) vowels, SUM(other) other
+FROM (SELECT name, CASE WHEN LEFT(UPPER(name), 1) IN ('A','E','I','O','U') 
+                           THEN 1 ELSE 0 END AS vowels, 
+             CASE WHEN LEFT(UPPER(name), 1) IN ('A','E','I','O','U') 
+                          THEN 0 ELSE 1 END AS other
+            FROM accounts) t1;
+
+-- Use the accounts table to create first and last name columns that hold the first and last names for the primary_poc.
+SELECT LEFT(primary_poc, STRPOS(primary_poc, ' ') -1 ) first_name, 
+   RIGHT(primary_poc, LENGTH(primary_poc) - STRPOS(primary_poc, ' ')) last_name
+FROM accounts;
+                                                   
+-- Now see if you can do the same thing for every rep name in the sales_reps table. Again provide first and last name columns.
+SELECT LEFT(name, STRPOS(name, ' ') -1 ) first_name, 
+   RIGHT(name, LENGTH(name) - STRPOS(name, ' ')) last_name
+FROM sales_reps;
+
+-- Create an email address for each primary_poc. The email address should be the first name of the primary_poc . last name primary_poc @ company name .com.
+WITH t1 AS (
+    SELECT LEFT(primary_poc,     STRPOS(primary_poc, ' ') -1 ) first_name,  RIGHT(primary_poc, LENGTH(primary_poc) - STRPOS(primary_poc, ' ')) last_name, name
+    FROM accounts)
+SELECT first_name, last_name, CONCAT(LOWER(first_name), '.', LOWER(last_name), '@', LOWER(name), '.com')
+FROM t1;
+
+-- Remove spaces in email adresses
+WITH t1 AS (
+    SELECT LEFT(primary_poc,     STRPOS(primary_poc, ' ') -1 ) first_name,  RIGHT(primary_poc, LENGTH(primary_poc) - STRPOS(primary_poc, ' ')) last_name, name
+    FROM accounts)
+SELECT first_name, last_name, CONCAT(LOWER(first_name), '.', LOWER(last_name), '@', REPLACE(LOWER(name), ' ', ''), '.com')
+FROM t1;
