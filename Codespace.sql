@@ -65,7 +65,9 @@
 -- TO_DATE can convert text date to number date, like january to 1
 -- SUBSTR can be used to extract a substring from a string, following this syntax: SUBSTR(start position, number of characters extracted)
 -- COALESCE can replace NULL values
--- The WINDOW clause can be used to create an alias for a window used in many different aggregations
+-- The WINDOW clause can be used to create an alias for a window used in many different aggregations   
+-- LAG and LEAD clauses can be used to check previous(LAG) and next(LEAD) rows
+-- NTILE function is used to specify percentiles. So NTILE(100) is percentage, NTILE(4) is quartile. The number is the number of parts to split into
 
 -- CODING Examples --
 -- SQL Basics
@@ -1326,3 +1328,80 @@ SELECT id,
        MAX(total_amt_usd) OVER account_year_window AS max_total_amt_usd
 FROM orders
 WINDOW account_year_window AS (PARTITION BY account_id ORDER BY DATE_TRUNC('year',occurred_at))
+
+-- Compare row to previous row
+SELECT account_id,
+       standard_sum,
+       LAG(standard_sum) OVER (ORDER BY standard_sum) AS lag,
+       standard_sum - LAG(standard_sum) OVER (ORDER BY standard_sum) AS lag_difference
+FROM (
+       SELECT account_id,
+       SUM(standard_qty) AS standard_sum
+       FROM orders 
+       GROUP BY 1
+      ) sub
+
+-- Compare row to next row
+SELECT account_id,
+       standard_sum,
+       LEAD(standard_sum) OVER (ORDER BY standard_sum) AS lead,
+       LEAD(standard_sum) OVER (ORDER BY standard_sum) - standard_sum AS lead_difference
+FROM (
+SELECT account_id,
+       SUM(standard_qty) AS standard_sum
+       FROM orders 
+       GROUP BY 1
+     ) sub
+
+-- Modify this to compare this orders total revenue to next order
+SELECT account_id,
+       standard_sum,
+       LAG(standard_sum) OVER (ORDER BY standard_sum) AS lag,
+       LEAD(standard_sum) OVER (ORDER BY standard_sum) AS lead,
+       standard_sum - LAG(standard_sum) OVER (ORDER BY standard_sum) AS lag_difference,
+       LEAD(standard_sum) OVER (ORDER BY standard_sum) - standard_sum AS lead_difference
+FROM (
+SELECT account_id,
+       SUM(standard_qty) AS standard_sum
+  FROM orders 
+ GROUP BY 1
+ ) sub
+
+-- Modified code
+SELECT occurred_at,
+       total_amt_usd,
+       LEAD(total_amt_usd) OVER (ORDER BY occurred_at) AS lead,
+       LEAD(total_amt_usd) OVER (ORDER BY occurred_at) - total_amt_usd AS lead_difference
+FROM (
+SELECT occurred_at,
+       SUM(total_amt_usd) AS total_amt_usd
+  FROM orders 
+ GROUP BY 1
+) sub
+
+-- Use the NTILE functionality to divide the accounts into 4 levels in terms of the amount of standard_qty for their orders.
+SELECT
+       account_id,
+       occurred_at,
+       standard_qty,
+       NTILE(4) OVER (PARTITION BY account_id ORDER BY standard_qty) AS standard_quartile
+  FROM orders 
+ ORDER BY account_id DESC
+
+-- Use the NTILE functionality to divide the accounts into two levels in terms of the amount of gloss_qty for their orders. 
+SELECT
+       account_id,
+       occurred_at,
+       gloss_qty,
+       NTILE(2) OVER (PARTITION BY account_id ORDER BY gloss_qty) AS gloss_half
+  FROM orders 
+ ORDER BY account_id DESC
+
+-- Use the NTILE functionality to divide the orders for each account into 100 levels in terms of the amount of total_amt_usd for their orders.
+SELECT
+       account_id,
+       occurred_at,
+       total_amt_usd,
+       NTILE(100) OVER (PARTITION BY account_id ORDER BY total_amt_usd) AS total_percentile
+  FROM orders 
+ ORDER BY account_id DESC
